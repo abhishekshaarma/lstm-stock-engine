@@ -24,6 +24,8 @@ private:
     Eigen::MatrixXd Ug, Wg;
     Eigen::VectorXd bg;
    
+    Eigen::MatrixXd dUf, dWf, dUi, dWi, dUo, dWo, dUg, dWg;
+    Eigen::VectorXd dbf, dbi, dbo, dbg;
     
     // Random torXd bgnumber generator
     std::random_device rd;
@@ -40,6 +42,15 @@ private:
     Eigen::MatrixXd tanh_activation(const Eigen::MatrixXd& x)
     {
         return x.array().tanh();
+    }
+     Eigen::VectorXd sigmoid_derivative(const Eigen::VectorXd& sigmoid_output)
+    {
+        return sigmoid_output.cwiseProduct(Eigen::VectorXd::Ones(sigmoid_output.size()) - sigmoid_output);
+    }
+    
+    Eigen::VectorXd tanh_derivative(const Eigen::VectorXd& tanh_output)
+    {
+        return Eigen::VectorXd::Ones(tanh_output.size()) - tanh_output.cwiseProduct(tanh_output);
     }
 
 public:

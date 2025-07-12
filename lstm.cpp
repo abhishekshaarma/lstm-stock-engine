@@ -1,5 +1,4 @@
 #include "lstm.h"
-#include "activations.h"
 #include <iostream>
 // Constructor implementation
 lstm::lstm(int n_neurons, int input_size)  // Add input_size parameter
