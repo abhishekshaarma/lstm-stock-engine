@@ -5,25 +5,33 @@ lstm::lstm(int n_neurons, int input_size)  // Add input_size parameter
     : n_neurons(n_neurons), input_size(input_size), gen(rd()), dis(0.0, 0.1)  // Fix initialization
 {
     // Initialize forget gate parameters
-    Uf = Eigen::MatrixXd::Random(n_neurons, input_size) * 0.1;  // Use input_size
-    bf = Eigen::VectorXd::Random(n_neurons) * 0.1;              // Remove the ,1
-    Wf = Eigen::MatrixXd::Random(n_neurons, n_neurons) * 0.1;
+    double weight_scale = std::sqrt(2.0 / (input_size + n_neurons));
+    
+    // Initialize forget gate parameters
+    Uf = Eigen::MatrixXd::Random(n_neurons, input_size) * weight_scale;
+    bf = Eigen::VectorXd::Zero(n_neurons);  // Start with zero bias
+    Wf = Eigen::MatrixXd::Random(n_neurons, n_neurons) * weight_scale;
         
     // Initialize input gate parameters
-    Ui = Eigen::MatrixXd::Random(n_neurons, input_size) * 0.1;  // Use input_size
-    bi = Eigen::VectorXd::Random(n_neurons) * 0.1;              // Remove the ,1
-    Wi = Eigen::MatrixXd::Random(n_neurons, n_neurons) * 0.1;
+    Ui = Eigen::MatrixXd::Random(n_neurons, input_size) * weight_scale;
+    bi = Eigen::VectorXd::Zero(n_neurons);
+    Wi = Eigen::MatrixXd::Random(n_neurons, n_neurons) * weight_scale;
         
     // Initialize output gate parameters
-    Uo = Eigen::MatrixXd::Random(n_neurons, input_size) * 0.1;  // Use input_size
-    bo = Eigen::VectorXd::Random(n_neurons) * 0.1;              // Remove the ,1
-    Wo = Eigen::MatrixXd::Random(n_neurons, n_neurons) * 0.1;
+    Uo = Eigen::MatrixXd::Random(n_neurons, input_size) * weight_scale;
+    bo = Eigen::VectorXd::Zero(n_neurons);
+    Wo = Eigen::MatrixXd::Random(n_neurons, n_neurons) * weight_scale;
         
-    // Initialize candidate values parameters (c tilde)
-    Ug = Eigen::MatrixXd::Random(n_neurons, input_size) * 0.1;  // Use input_size
-    bg = Eigen::VectorXd::Random(n_neurons) * 0.1;              // Remove the ,1
-    Wg = Eigen::MatrixXd::Random(n_neurons, n_neurons) * 0.1;
+    // Initialize candidate values parameters
+    Ug = Eigen::MatrixXd::Random(n_neurons, input_size) * weight_scale;
+    bg = Eigen::VectorXd::Zero(n_neurons);
+    Wg = Eigen::MatrixXd::Random(n_neurons, n_neurons) * weight_scale;
+    
+    // Initialize forget gate bias to 1 (helps with learning)
+    bf = Eigen::VectorXd::Ones(n_neurons);
 }
+
+
 void lstm::print_parameters() const
 {
     std::cout << "LSTM Parameters:" << std::endl;
@@ -107,3 +115,155 @@ LSTMOutput lstm::forward(const std::vector<Eigen::VectorXd>& sequence_of_inputs)
         candidate_inputs, cell_state_tanh_inputs};
 }
 
+void lstm::zero_gradients()
+{
+    // Initialize gradients to zero
+    dUf = Eigen::MatrixXd::Zero(n_neurons, input_size);
+    dWf = Eigen::MatrixXd::Zero(n_neurons, n_neurons);
+    dbf = Eigen::VectorXd::Zero(n_neurons);
+    
+    dUi = Eigen::MatrixXd::Zero(n_neurons, input_size);
+    dWi = Eigen::MatrixXd::Zero(n_neurons, n_neurons);
+    dbi = Eigen::VectorXd::Zero(n_neurons);
+    
+    dUo = Eigen::MatrixXd::Zero(n_neurons, input_size);
+    dWo = Eigen::MatrixXd::Zero(n_neurons, n_neurons);
+    dbo = Eigen::VectorXd::Zero(n_neurons);
+    
+    dUg = Eigen::MatrixXd::Zero(n_neurons, input_size);
+    dWg = Eigen::MatrixXd::Zero(n_neurons, n_neurons);
+    dbg = Eigen::VectorXd::Zero(n_neurons);
+}
+
+void lstm::updateParameters(double learning_rate)
+{
+    // Update forget gate parameters
+    Uf -= learning_rate * dUf;
+    Wf -= learning_rate * dWf;
+    bf -= learning_rate * dbf;
+    
+    // Update input gate parameters
+    Ui -= learning_rate * dUi;
+    Wi -= learning_rate * dWi;
+    bi -= learning_rate * dbi;
+    
+    // Update output gate parameters
+    Uo -= learning_rate * dUo;
+    Wo -= learning_rate * dWo;
+    bo -= learning_rate * dbo;
+    
+    // Update candidate values parameters
+    Ug -= learning_rate * dUg;
+    Wg -= learning_rate * dWg;
+    bg -= learning_rate * dbg;
+}
+
+
+void lstm::backward(const std::vector<Eigen::VectorXd>& sequence_of_inputs, 
+                   const LSTMOutput& forward_output, 
+                   const Eigen::VectorXd& dvalues_final)
+{
+    int T = sequence_of_inputs.size();
+    
+    // Extract forward pass results
+    const auto& H = forward_output.H;
+    const auto& C = forward_output.C;
+    const auto& C_tilde = forward_output.C_tilde;
+    const auto& F = forward_output.F;
+    const auto& O = forward_output.O;
+    const auto& I = forward_output.I;
+    
+    // Initialize gradients to zero
+    zero_gradients();
+    
+        
+    // Initialize gradient for hidden state
+    Eigen::VectorXd dht = dvalues_final;
+    Eigen::VectorXd dct = Eigen::VectorXd::Zero(n_neurons);
+    
+    // Backpropagate through time
+    for(int t = T - 1; t >= 0; t--)
+    {
+        Eigen::VectorXd xt = sequence_of_inputs[t];
+        
+        // Get previous hidden and cell states
+        Eigen::VectorXd ht_prev = (t > 0) ? H[t] : Eigen::VectorXd::Zero(n_neurons);
+        Eigen::VectorXd ct_prev = (t > 0) ? C[t] : Eigen::VectorXd::Zero(n_neurons);
+        
+        // Current states
+        Eigen::VectorXd ct_current = C[t+1];
+        
+        // Gradient of tanh(ct) w.r.t ct
+        Eigen::VectorXd tanh_ct = tanh_activation(ct_current);
+        Eigen::VectorXd dtanh_ct = tanh_derivative(tanh_ct);
+        
+        // Gradient from output gate multiplication: ht = tanh(ct) * ot
+        Eigen::VectorXd dht_to_tanh_ct = dht.cwiseProduct(O[t]);
+        Eigen::VectorXd dht_to_ot = dht.cwiseProduct(tanh_ct);
+        
+        // Add gradient from next timestep's cell state
+        dct += dht_to_tanh_ct.cwiseProduct(dtanh_ct);
+        
+        // Output gate gradients
+        Eigen::VectorXd dsigmo = dht_to_ot.cwiseProduct(sigmoid_derivative(O[t]));
+        
+        // Cell state gradients
+        Eigen::VectorXd dct_to_ft = dct.cwiseProduct(ct_prev);
+        Eigen::VectorXd dct_to_it = dct.cwiseProduct(C_tilde[t]);
+        Eigen::VectorXd dct_to_ct_tilde = dct.cwiseProduct(I[t]);
+        
+        // Forget gate gradients
+        Eigen::VectorXd dsigmf = dct_to_ft.cwiseProduct(sigmoid_derivative(F[t]));
+        
+        // Input gate gradients
+        Eigen::VectorXd dsigmi = dct_to_it.cwiseProduct(sigmoid_derivative(I[t]));
+        
+        // Candidate values gradients
+        Eigen::VectorXd dtanh1 = dct_to_ct_tilde.cwiseProduct(tanh_derivative(C_tilde[t]));
+        
+        // Accumulate parameter gradients
+        
+        // Forget gate parameter gradients
+        dUf += dsigmf * xt.transpose();
+        dWf += dsigmf * ht_prev.transpose();
+        dbf += dsigmf;
+        
+        // Input gate parameter gradients
+        dUi += dsigmi * xt.transpose();
+        dWi += dsigmi * ht_prev.transpose();
+        dbi += dsigmi;
+        
+        // Output gate parameter gradients
+        dUo += dsigmo * xt.transpose();
+        dWo += dsigmo * ht_prev.transpose();
+        dbo += dsigmo;
+        
+        // Candidate values parameter gradients
+        dUg += dtanh1 * xt.transpose();
+        dWg += dtanh1 * ht_prev.transpose();
+        dbg += dtanh1;
+        
+        // Compute gradients for previous timestep
+        if(t > 0)
+        {
+            // Gradient w.r.t. previous hidden state
+            dht = Wf.transpose() * dsigmf + 
+                  Wi.transpose() * dsigmi + 
+                  Wo.transpose() * dsigmo + 
+                  Wg.transpose() * dtanh1;
+            
+            // Gradient w.r.t. previous cell state
+            dct = dct.cwiseProduct(F[t]);
+        }
+    }
+}
+
+Eigen::VectorXd lstm::sigmoid_derivative(const Eigen::VectorXd& sigmoid_output)
+{
+    return sigmoid_output.cwiseProduct(Eigen::VectorXd::Ones(sigmoid_output.size()) - sigmoid_output);
+}
+
+Eigen::VectorXd lstm::tanh_derivative(const Eigen::VectorXd& tanh_output)
+{
+    return Eigen::VectorXd::Ones(tanh_output.size()) - tanh_output.cwiseProduct(tanh_output);
+}
