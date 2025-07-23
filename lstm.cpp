@@ -1,4 +1,3 @@
-// Fixed LSTM Implementation - lstm.cpp
 #include "lstm.h"
 #include <iostream>
 
