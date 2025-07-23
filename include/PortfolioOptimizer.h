@@ -4,7 +4,11 @@
 #include <algorithm>
 #include <iostream>
 
-class PortfolioOptimizer {
+/*
+Need to study the concept in more indepth and make changes to the class.
+*/
+class PortfolioOptimizer
+{
 private:
     int n_assets;
     double risk_free_rate;

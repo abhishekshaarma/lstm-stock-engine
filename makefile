@@ -7,7 +7,7 @@ OBJDIR = obj
 BINDIR = bin
 
 # Files
-SOURCES = lstm.cpp main.cpp
+SOURCES = lstm.cpp main.cpp Utils.cpp
 OBJECTS = $(SOURCES:%.cpp=$(OBJDIR)/%.o)
 TARGET = $(BINDIR)/lstm
 
