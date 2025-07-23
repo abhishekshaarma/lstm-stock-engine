@@ -26,12 +26,12 @@ C++17 or higher compiler and Eigen linear algebra library (for matrix and vector
 the rest is just c++ stdlibrary
 
 ### Project Structure
-->lstm.h / lstm.cpp:
-->StockCSVParser.h / StockCSVParser.cpp:
-->MultiFactorModel.h / MultiFactorModel.cpp:
-->RiskMetrics.h, PortfolioOptimizer.h, Utils.h:
-->Utils.cpp
-->main.cpp:
+- lstm.h / lstm.cpp:
+- StockCSVParser.h / StockCSVParser.cpp:
+- MultiFactorModel.h / MultiFactorModel.cpp:
+- RiskMetrics.h, PortfolioOptimizer.h, Utils.h:
+- Utils.cpp
+- main.cpp:
 
 ### data/stock.csv:
 Sample historical stock price data used for training and testing.
