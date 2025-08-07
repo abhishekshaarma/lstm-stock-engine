@@ -1,33 +1,46 @@
-$requiredFiles = @("main.cpp", "lstm.cpp", "Utils.cpp")
-foreach ($file in $requiredFiles) {
-    if (!(Test-Path $file)) {
-        Write-Host "Missing file: $file" 
+# PowerShell build script for LSTM Multi-Factor Investment Model
+# Requires Visual Studio Build Tools or MinGW-w64
+
+$ErrorActionPreference = "Stop"
+
+# Configuration
+$CXX = "g++"
+$CXXFLAGS = "-std=c++17 -Wall -O2 -fopenmp"
+$INCLUDES = "-Iinclude -Iinclude/eigen-3.4.0"
+$LIBS = "-fopenmp"
+
+# Directories
+$OBJDIR = "obj"
+$BINDIR = "bin"
+
+# Create directories
+if (!(Test-Path $OBJDIR)) { New-Item -ItemType Directory -Path $OBJDIR }
+if (!(Test-Path $BINDIR)) { New-Item -ItemType Directory -Path $BINDIR }
+
+# Source files
+$SOURCES = @("lstm.cpp", "main.cpp", "Utils.cpp")
+$OBJECTS = @()
+
+# Compile source files
+foreach ($source in $SOURCES) {
+    $obj = "$OBJDIR\$([System.IO.Path]::GetFileNameWithoutExtension($source)).o"
+    $OBJECTS += $obj
+    
+    Write-Host "Compiling $source..."
+    & $CXX $CXXFLAGS $INCLUDES -c $source -o $obj
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Compilation failed for $source"
         exit 1
     }
 }
 
-if (!(Test-Path "data/stock.csv")) {
-    Write-Host "Warning: data/stock.csv not found!" 
+# Link executable
+Write-Host "Linking executable..."
+& $CXX $OBJECTS -o "$BINDIR/lstm.exe" $LIBS
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Linking failed"
+    exit 1
 }
 
-Write-Host "Files found:" 
-Get-ChildItem -Name "*.cpp", "*.h" | ForEach-Object { Write-Host "   $_"  }
-
-Write-Host "Compiling..." 
-
-$command = "g++ -std=c++17 -I`"./include`" -I`"./include/eigen-3.4.0`" -O2 main.cpp lstm.cpp Utils.cpp -o bin/lstm.exe"
-
-Write-Host "Command: $command" 
-Invoke-Expression $command
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Build successful!" 
-    Write-Host "Running LSTM model..." 
-    Write-Host "This will take several minutes..." 
-    Write-Host ""
-    
-
-    & "./bin/lstm.exe"
-} else {
-    Write-Host "Build failed!" 
-}
+Write-Host "Build completed successfully!"
+Write-Host "Executable: $BINDIR/lstm.exe"
